@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compilazione F24 IMU</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+            padding: 24px 32px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .controls {
+            padding: 24px 32px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .file-input-container {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: #4caf50;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .file-input-label:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .file-input-label.loading {
+            background: #ff9800;
+            cursor: not-allowed;
+        }
+
+        .file-input-label.success {
+            background: #4caf50;
+        }
+
+        .sheet-selector {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .sheet-selector select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            transition: border-color 0.2s ease;
+        }
+
+        .sheet-selector select:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-save {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-save:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        .btn-reset {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-reset:hover:not(:disabled) {
+            background: #d32f2f;
+        }
+
+        .btn-export {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-export:hover:not(:disabled) {
+            background: #1976d2;
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f5f5f5;
+            padding: 16px 24px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .section-content {
+            padding: 24px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 40px 12px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+
+        .copy-btn {
+            position: absolute;
+            right: 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #f0f0f0;
+            color: #1976d2;
+        }
+
+        .copy-btn.copied {
+            color: #4caf50;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+        }
+
+        .imu-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+        .imu-table th,
+        .imu-table td {
+            padding: 16px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            border-right: 1px solid #f0f0f0;
+            vertical-align: top;
+        }
+
+        .imu-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.3;
+            position: relative;
+        }
+
+        .imu-table tbody tr:nth-child(odd) {
+            background: #f9f9f9;
+        }
+
+        .imu-table tbody tr:nth-child(even) {
+            background: #ffffff;
+        }
+
+        .imu-table tbody tr:hover {
+            background: #e3f2fd !important;
+        }
+
+        .imu-table-cell {
+            position: relative;
+            min-height: 50px;
+        }
+
+        .imu-table input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 500;
+            text-align: center;
+            background: white;
+            transition: all 0.2s ease;
+        }
+
+        /* Remove number input arrows/spinners */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .imu-table input:focus {
+            outline: none;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        .imu-table input:hover {
+            border-color: #bbb;
+        }
+
+        .imu-table .copy-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.2s ease;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .imu-table-cell:hover .copy-btn {
+            opacity: 1;
+        }
+
+        .imu-table .copy-btn:hover {
+            background: #1565c0;
+            transform: scale(1.1);
+        }
+
+        .imu-table .copy-btn.copied {
+            background: #4caf50;
+        }
+
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .total-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .total-label {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .total-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1976d2;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .action-buttons {
+                justify-content: center;
+            }
+
+            .content {
+                padding: 16px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .totals-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: #4caf50;
+        }
+
+        .notification.error {
+            background: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Compilazione F24 IMU</h1>
+            <p>Sistema di gestione per la compilazione dei moduli F24 IMU</p>
+        </div>
+
+        <div class="controls">
+            <div class="file-input-container">
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                <label for="fileInput" class="file-input-label" id="fileLabel">
+                    <span>📁</span>
+                    <span id="fileLabelText">Carica file Excel</span>
+                </label>
+            </div>
+
+            <div class="sheet-selector">
+                <select id="sheetSelector" disabled>
+                    <option value="">Seleziona un foglio...</option>
+                </select>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-save" id="saveBtn" onclick="saveCurrentSheetData()" disabled>
+                    <span>💾</span>
+                    <span id="saveBtnText">Salva dati</span>
+                </button>
+                <button class="btn btn-reset" id="resetBtn" onclick="resetApp()">
+                    <span>🔄</span>
+                    <span id="resetBtnText">Reset</span>
+                </button>
+                <button class="btn btn-export" id="exportBtn" onclick="exportData()" disabled>
+                    <span>📊</span>
+                    <span id="exportBtnText">Esporta Excel</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="content" id="content">
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <h3>Benvenuto nel sistema F24 IMU</h3>
+                <p>Carica un file Excel per iniziare la compilazione del modulo F24</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workbook = null;
+        let currentData = {};
+        let savedSheetsData = {}; // Store data for all sheets
+
+        // Helper function to format monetary values with Italian decimal separator
+        function formatCurrencyItalian(value) {
+            if (!value && value !== 0) return '';
+            const num = parseFloat(value);
+            if (isNaN(num)) return value;
+            return num.toFixed(2).replace('.', ',');
+        }
+
+        // Helper function to parse Italian formatted currency back to number
+        function parseCurrencyItalian(value) {
+            if (!value) return 0;
+            return parseFloat(value.toString().replace(',', '.')) || 0;
+        }
+
+        // Save current sheet data to browser storage
+        function saveCurrentSheetData() {
+            const currentSheetName = document.getElementById('sheetSelector').value;
+            if (!currentSheetName) {
+                showNotification('Nessun foglio selezionato per il salvataggio', 'error');
+                return;
+            }
+
+            updateCurrentData();
+            savedSheetsData[currentSheetName] = JSON.parse(JSON.stringify(currentData));
+            
+            // Save to localStorage (with error handling for storage limits)
+            try {
+                localStorage.setItem('f24_saved_sheets', JSON.stringify(savedSheetsData));
+                showNotification(`Dati del foglio "${currentSheetName}" salvati!`, 'success');
+            } catch (error) {
+                console.error('Errore nel salvataggio:', error);
+                showNotification('Errore nel salvataggio dei dati', 'error');
+            }
+        }
+
+        // Load saved data from browser storage
+        function loadSavedData() {
+            try {
+                const saved = localStorage.getItem('f24_saved_sheets');
+                if (saved) {
+                    savedSheetsData = JSON.parse(saved);
+                    console.log('Dati salvati caricati:', Object.keys(savedSheetsData));
+                }
+            } catch (error) {
+                console.error('Errore nel caricamento dati salvati:', error);
+                savedSheetsData = {};
+            }
+        }
+
+        // Get data for export (saved data if available, otherwise original)
+        function getSheetDataForExport(sheetName) {
+            const currentSheetName = document.getElementById('sheetSelector').value;
+            
+            // If it's the current sheet, get form data
+            if (sheetName === currentSheetName) {
+                updateCurrentData();
+                return currentData;
+            }
+            
+            // If we have saved data for this sheet, use it
+            if (savedSheetsData[sheetName]) {
+                return savedSheetsData[sheetName];
+            }
+            
+            // Otherwise, parse original data from workbook
+            if (workbook && workbook.Sheets[sheetName]) {
+                return parseSheetData(workbook.Sheets[sheetName]);
+            }
+            
+            // Fallback to empty data
+            return getEmptyData();
+        }
+
+        // File input handling
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('sheetSelector').addEventListener('change', handleSheetChange);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileLabel = document.getElementById('fileLabel');
+            const fileLabelText = document.getElementById('fileLabelText');
+            
+            fileLabel.classList.add('loading');
+            fileLabelText.textContent = 'Caricamento...';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    workbook = XLSX.read(e.target.result, { type: 'binary' });
+                    populateSheetSelector();
+                    
+                    fileLabel.classList.remove('loading');
+                    fileLabel.classList.add('success');
+                    fileLabelText.textContent = '✓ File caricato';
+                    
+                    showNotification('File caricato con successo!', 'success');
+                } catch (error) {
+                    console.error('Errore nel caricamento del file:', error);
+                    fileLabel.classList.remove('loading');
+                    fileLabelText.textContent = 'Errore nel caricamento';
+                    showNotification('Errore nel caricamento del file', 'error');
+                }
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        function populateSheetSelector() {
+            const selector = document.getElementById('sheetSelector');
+            selector.innerHTML = '<option value="">Seleziona un foglio...</option>';
+            
+            workbook.SheetNames.forEach(sheetName => {
+                const option = document.createElement('option');
+                option.value = sheetName;
+                option.textContent = sheetName;
+                selector.appendChild(option);
+            });
+            
+            selector.disabled = false;
+            
+            // Load saved data
+            loadSavedData();
+            
+            // Auto-select the first sheet and load its data
+            if (workbook.SheetNames.length > 0) {
+                const firstSheet = workbook.SheetNames[0];
+                selector.value = firstSheet;
+                
+                // Trigger the change event to load the first sheet data
+                try {
+                    let data;
+                    
+                    // Check if we have saved data for this sheet
+                    if (savedSheetsData[firstSheet]) {
+                        data = savedSheetsData[firstSheet];
+                        showNotification(`Caricati dati salvati per "${firstSheet}"`, 'success');
+                    } else {
+                        const worksheet = workbook.Sheets[firstSheet];
+                        data = parseSheetData(worksheet);
+                        showNotification(`Foglio "${firstSheet}" caricato automaticamente`, 'success');
+                    }
+                    
+                    currentData = data;
+                    renderForm(data);
+                    document.getElementById('exportBtn').disabled = false;
+                    document.getElementById('saveBtn').disabled = false;
+                } catch (error) {
+                    console.error('Errore nel caricamento automatico del primo foglio:', error);
+                }
+            }
+        }
+
+        function handleSheetChange(event) {
+            const sheetName = event.target.value;
+            if (!sheetName || !workbook) return;
+
+            try {
+                let data;
+                
+                // Check if we have saved data for this sheet
+                if (savedSheetsData[sheetName]) {
+                    data = savedSheetsData[sheetName];
+                    showNotification(`Caricati dati salvati per "${sheetName}"`, 'success');
+                } else {
+                    // Parse original data from workbook
+                    const worksheet = workbook.Sheets[sheetName];
+                    data = parseSheetData(worksheet);
+                }
+                
+                currentData = data;
+                renderForm(data);
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('saveBtn').disabled = false;
+            } catch (error) {
+                console.error('Errore nel parsing del foglio:', error);
+                showNotification('Errore nel parsing dei dati', 'error');
+            }
+        }
+
+        function parseSheetData(worksheet) {
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            const data = {
+                codiceFiscale: '',
+                datiAnagrafici: {},
+                domicilioFiscale: {},
+                imuRows: [
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' }
+                ],
+                totali: { totaleG: '', saldoGH: '' }
+            };
+
+            // Helper function to convert Excel date serial number to YYYY-MM-DD
+            function excelDateToString(serial) {
+                if (typeof serial === 'number' && serial > 1000) {
+                    // Excel date serial number
+                    const excelEpoch = new Date(1900, 0, 1);
+                    const date = new Date(excelEpoch.getTime() + (serial - 2) * 24 * 60 * 60 * 1000);
+                    return date.toISOString().split('T')[0];
+                }
+                return serial;
+            }
+
+            // Helper function to format monetary values with 2 decimals
+            function formatCurrency(value) {
+                if (!value && value !== 0) return '';
+                const num = parseFloat(value);
+                return isNaN(num) ? value : formatCurrencyItalian(num);
+            }
+
+            // Parse data from worksheet
+            for (let row = range.s.r; row <= range.e.r; row++) {
+                const cellA = worksheet[XLSX.utils.encode_cell({r: row, c: 0})];
+                const cellB = worksheet[XLSX.utils.encode_cell({r: row, c: 1})];
+                const cellC = worksheet[XLSX.utils.encode_cell({r: row, c: 2})];
+
+                if (!cellA || !cellB || !cellC) continue;
+
+                const category = cellA.v;
+                const type = cellB.v;
+                let value = cellC.v;
+
+                // Map data based on category and type
+                if (category === 'CODICE FISCALE' && type === 'Codice Fiscale') {
+                    data.codiceFiscale = value;
+                } else if (category === 'DATI ANAGRAFICI') {
+                    switch (type) {
+                        case 'Nome':
+                            data.datiAnagrafici.nome = value;
+                            break;
+                        case 'Cognome':
+                            data.datiAnagrafici.cognome = value;
+                            break;
+                        case 'Data di Nascita':
+                            data.datiAnagrafici.dataNascita = excelDateToString(value);
+                            break;
+                        case 'Sesso':
+                            data.datiAnagrafici.sesso = value;
+                            break;
+                        case 'Comune di nascita':
+                            data.datiAnagrafici.comuneNascita = value;
+                            break;
+                    }
+                } else if (category === 'DOMICLIO FISCALE') {
+                    switch (type) {
+                        case 'Comune':
+                            data.domicilioFiscale.comune = value;
+                            break;
+                        case 'Provincia':
+                            data.domicilioFiscale.provincia = value;
+                            break;
+                        case 'Via e numero civico':
+                            data.domicilioFiscale.indirizzo = value;
+                            break;
+                    }
+                } else if (category.includes('SEZIONE IMU E ALTRI TRIBUTI LOCALI')) {
+                    // Extract row number from category string
+                    const rowMatch = category.match(/riga (\d+)/);
+                    const rowIndex = rowMatch ? parseInt(rowMatch[1]) - 1 : 0;
+                    
+                    if (rowIndex >= 0 && rowIndex < 4) {
+                        switch (type) {
+                            case 'Codice ente/codice comune':
+                                data.imuRows[rowIndex].codiceEnte = value;
+                                break;
+                            case 'Ravv.':
+                                data.imuRows[rowIndex].ravv = value;
+                                break;
+                            case 'Immob. variati':
+                                data.imuRows[rowIndex].immobVariati = value;
+                                break;
+                            case 'Acconto':
+                                data.imuRows[rowIndex].acconto = value;
+                                break;
+                            case 'Saldo':
+                                data.imuRows[rowIndex].saldo = value;
+                                break;
+                            case 'Numero Immobili':
+                                data.imuRows[rowIndex].numeroImmobili = value;
+                                break;
+                            case 'Codice Tributo':
+                                data.imuRows[rowIndex].codiceTributo = value;
+                                break;
+                            case 'Rateazione/mese rif.':
+                                data.imuRows[rowIndex].rateazione = value;
+                                break;
+                            case 'Anno di riferimento':
+                                data.imuRows[rowIndex].annoRiferimento = value;
+                                break;
+                            case 'Importi a debito versati':
+                                data.imuRows[rowIndex].importiDebito = formatCurrency(value);
+                                break;
+                            case 'Importi a credito compensati':
+                                data.imuRows[rowIndex].importiCredito = formatCurrency(value);
+                                break;
+                        }
+                    }
+                } else if (category === 'SEZIONE VALORI TOTALI') {
+                    switch (type) {
+                        case 'Totale G':
+                            data.totali.totaleG = formatCurrency(value);
+                            break;
+                        case 'Saldo G-H':
+                            data.totali.saldoGH = formatCurrency(value);
+                            break;
+                    }
+                }
+            }
+
+            return data;
+        }
+
+        function renderForm(data) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Dati Contribuente</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Codice Fiscale</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="codiceFiscale" value="${data.codiceFiscale || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('codiceFiscale')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Nome</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="nome" value="${data.datiAnagrafici.nome || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('nome')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Cognome</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="cognome" value="${data.datiAnagrafici.cognome || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('cognome')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data di Nascita</label>
+                                <div class="input-container">
+                                    <input type="date" class="form-input" id="dataNascita" value="${data.datiAnagrafici.dataNascita || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('dataNascita')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sesso</label>
+                                <div class="input-container">
+                                    <select class="form-input" id="sesso">
+                                        <option value="">Seleziona...</option>
+                                        <option value="M" ${data.datiAnagrafici.sesso === 'M' ? 'selected' : ''}>Maschio</option>
+                                        <option value="F" ${data.datiAnagrafici.sesso === 'F' ? 'selected' : ''}>Femmina</option>
+                                    </select>
+                                    <button class="copy-btn" onclick="copyToClipboard('sesso')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Comune di Nascita</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="comuneNascita" value="${data.datiAnagrafici.comuneNascita || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('comuneNascita')">📋</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Domicilio Fiscale</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Comune</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="comune" value="${data.domicilioFiscale.comune || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('comune')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Provincia</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="provincia" value="${data.domicilioFiscale.provincia || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('provincia')">📋</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Via e Numero Civico</label>
+                                <div class="input-container">
+                                    <input type="text" class="form-input" id="indirizzo" value="${data.domicilioFiscale.indirizzo || ''}">
+                                    <button class="copy-btn" onclick="copyToClipboard('indirizzo')">📋</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Sezione IMU e Altri Tributi Locali</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="table-container">
+                            <table class="imu-table">
+                                <thead>
+                                    <tr>
+                                        <th>Codice Ente/<br>Codice Comune</th>
+                                        <th>Ravv.</th>
+                                        <th>Immob.<br>Variati</th>
+                                        <th>Acconto</th>
+                                        <th>Saldo</th>
+                                        <th>Numero<br>Immobili</th>
+                                        <th>Codice<br>Tributo</th>
+                                        <th>Rateazione/<br>Mese Rif.</th>
+                                        <th>Anno di<br>Riferimento</th>
+                                        <th>Importi a Debito<br>Versati</th>
+                                        <th>Importi a Credito<br>Compensati</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.imuRows.map((row, index) => `
+                                        <tr>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="codiceEnte_${index}" value="${row.codiceEnte || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('codiceEnte_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="ravv_${index}" value="${row.ravv || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('ravv_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="immobVariati_${index}" value="${row.immobVariati || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('immobVariati_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="acconto_${index}" value="${row.acconto || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('acconto_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="saldo_${index}" value="${row.saldo || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('saldo_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="number" id="numeroImmobili_${index}" value="${row.numeroImmobili || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('numeroImmobili_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="codiceTributo_${index}" value="${row.codiceTributo || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('codiceTributo_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="text" id="rateazione_${index}" value="${row.rateazione || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('rateazione_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="number" id="annoRiferimento_${index}" value="${row.annoRiferimento || ''}" onchange="updateCurrentData()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('annoRiferimento_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="number" step="0.01" id="importiDebito_${index}" value="${row.importiDebito || ''}" onchange="updateCurrentData(); calculateTotals()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('importiDebito_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="imu-table-cell">
+                                                    <input type="number" step="0.01" id="importiCredito_${index}" value="${row.importiCredito || ''}" onchange="updateCurrentData(); calculateTotals()">
+                                                    <button class="copy-btn" onclick="copyToClipboard('importiCredito_${index}')" title="Copia">📋</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Valori Totali</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="totals-grid">
+                            <div class="total-card">
+                                <div class="total-label">Totale G</div>
+                                <div class="input-container">
+                                    <input type="number" step="0.01" class="form-input total-value" id="totaleG" value="${data.totali.totaleG || ''}" style="text-align: center; font-size: 1.2rem; font-weight: 600;">
+                                    <button class="copy-btn" onclick="copyToClipboard('totaleG')">📋</button>
+                                </div>
+                            </div>
+                            <div class="total-card">
+                                <div class="total-label">Saldo (G-H)</div>
+                                <div class="input-container">
+                                    <input type="number" step="0.01" class="form-input total-value" id="saldoGH" value="${data.totali.saldoGH || ''}" style="text-align: center; font-size: 1.2rem; font-weight: 600;">
+                                    <button class="copy-btn" onclick="copyToClipboard('saldoGH')">📋</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add event listeners to form inputs
+            const inputs = content.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('change', updateCurrentData);
+            });
+
+            // Add monetary formatting to relevant fields
+            addMonetaryFormatting();
+
+            calculateTotals();
+        }
+
+        function updateCurrentData() {
+            // Update currentData object with form values
+            currentData.codiceFiscale = document.getElementById('codiceFiscale').value;
+            currentData.datiAnagrafici.nome = document.getElementById('nome').value;
+            currentData.datiAnagrafici.cognome = document.getElementById('cognome').value;
+            currentData.datiAnagrafici.dataNascita = document.getElementById('dataNascita').value;
+            currentData.datiAnagrafici.sesso = document.getElementById('sesso').value;
+            currentData.datiAnagrafici.comuneNascita = document.getElementById('comuneNascita').value;
+            currentData.domicilioFiscale.comune = document.getElementById('comune').value;
+            currentData.domicilioFiscale.provincia = document.getElementById('provincia').value;
+            currentData.domicilioFiscale.indirizzo = document.getElementById('indirizzo').value;
+
+            // Update IMU rows - convert comma values to dot for internal storage
+            for (let i = 0; i < 4; i++) {
+                currentData.imuRows[i].codiceEnte = document.getElementById(`codiceEnte_${i}`).value;
+                currentData.imuRows[i].ravv = document.getElementById(`ravv_${i}`).value;
+                currentData.imuRows[i].immobVariati = document.getElementById(`immobVariati_${i}`).value;
+                currentData.imuRows[i].acconto = document.getElementById(`acconto_${i}`).value;
+                currentData.imuRows[i].saldo = document.getElementById(`saldo_${i}`).value;
+                currentData.imuRows[i].numeroImmobili = document.getElementById(`numeroImmobili_${i}`).value;
+                currentData.imuRows[i].codiceTributo = document.getElementById(`codiceTributo_${i}`).value;
+                currentData.imuRows[i].rateazione = document.getElementById(`rateazione_${i}`).value;
+                currentData.imuRows[i].annoRiferimento = document.getElementById(`annoRiferimento_${i}`).value;
+                
+                // Convert comma to dot for internal storage
+                const debitoValue = document.getElementById(`importiDebito_${i}`).value;
+                const creditoValue = document.getElementById(`importiCredito_${i}`).value;
+                currentData.imuRows[i].importiDebito = debitoValue ? parseCurrencyItalian(debitoValue).toFixed(2) : '';
+                currentData.imuRows[i].importiCredito = creditoValue ? parseCurrencyItalian(creditoValue).toFixed(2) : '';
+            }
+
+            // Totals are already updated in calculateTotals function
+        }
+
+        function calculateTotals() {
+            let totalDebito = 0;
+            let totalCredito = 0;
+
+            for (let i = 0; i < 4; i++) {
+                const debitoValue = document.getElementById(`importiDebito_${i}`).value;
+                const creditoValue = document.getElementById(`importiCredito_${i}`).value;
+                
+                const debito = parseCurrencyItalian(debitoValue);
+                const credito = parseCurrencyItalian(creditoValue);
+                
+                totalDebito += debito;
+                totalCredito += credito;
+            }
+
+            const totaleG = totalDebito;
+            const saldoGH = totalDebito - totalCredito;
+
+            document.getElementById('totaleG').value = formatCurrencyItalian(totaleG);
+            document.getElementById('saldoGH').value = formatCurrencyItalian(saldoGH);
+
+            // Update currentData with English format for export
+            currentData.totali.totaleG = totaleG.toFixed(2);
+            currentData.totali.saldoGH = saldoGH.toFixed(2);
+        }
+
+        // Add formatting function for monetary inputs
+        function formatMonetaryInput(inputId) {
+            const input = document.getElementById(inputId);
+            if (input && input.value) {
+                const numValue = parseCurrencyItalian(input.value);
+                if (!isNaN(numValue)) {
+                    input.value = formatCurrencyItalian(numValue);
+                }
+            }
+        }
+
+        // Add blur event handlers for monetary formatting
+        function addMonetaryFormatting() {
+            // Add formatting to all monetary input fields
+            for (let i = 0; i < 4; i++) {
+                const debitoInput = document.getElementById(`importiDebito_${i}`);
+                const creditoInput = document.getElementById(`importiCredito_${i}`);
+                
+                if (debitoInput) {
+                    debitoInput.addEventListener('blur', () => {
+                        formatMonetaryInput(`importiDebito_${i}`);
+                        updateCurrentData();
+                        calculateTotals();
+                    });
+                }
+                
+                if (creditoInput) {
+                    creditoInput.addEventListener('blur', () => {
+                        formatMonetaryInput(`importiCredito_${i}`);
+                        updateCurrentData();
+                        calculateTotals();
+                    });
+                }
+            }
+
+            // Add formatting to total fields
+            const totaleGInput = document.getElementById('totaleG');
+            const saldoGHInput = document.getElementById('saldoGH');
+            
+            if (totaleGInput) {
+                totaleGInput.addEventListener('blur', () => {
+                    formatMonetaryInput('totaleG');
+                    updateCurrentData();
+                });
+            }
+            
+            if (saldoGHInput) {
+                saldoGHInput.addEventListener('blur', () => {
+                    formatMonetaryInput('saldoGH');
+                    updateCurrentData();
+                });
+            }
+        }
+
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            let value;
+            
+            if (element.type === 'select-one') {
+                value = element.selectedOptions[0].text;
+            } else if (element.type === 'number' && (elementId.includes('importiDebito') || elementId.includes('importiCredito') || elementId.includes('totale') || elementId.includes('saldo'))) {
+                // For monetary fields, copy the value as displayed (with comma)
+                value = element.value;
+            } else {
+                value = element.value;
+            }
+            
+            navigator.clipboard.writeText(value).then(() => {
+                const copyBtn = element.parentElement.querySelector('.copy-btn');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✓';
+                copyBtn.classList.add('copied');
+                
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.classList.remove('copied');
+                }, 1000);
+                
+                showNotification('Testo copiato negli appunti!', 'success');
+            }).catch(() => {
+                showNotification('Errore nella copia', 'error');
+            });
+        }
+
+        function resetApp() {
+            const resetBtn = document.getElementById('resetBtn');
+            const resetBtnText = document.getElementById('resetBtnText');
+            
+            resetBtnText.textContent = 'Resettando...';
+            resetBtn.disabled = true;
+            
+            setTimeout(() => {
+                // Reset all variables
+                workbook = null;
+                currentData = {};
+                savedSheetsData = {};
+                
+                // Clear localStorage
+                try {
+                    localStorage.removeItem('f24_saved_sheets');
+                } catch (error) {
+                    console.error('Errore nella pulizia localStorage:', error);
+                }
+                
+                // Reset form elements
+                document.getElementById('fileInput').value = '';
+                document.getElementById('sheetSelector').innerHTML = '<option value="">Seleziona un foglio...</option>';
+                document.getElementById('sheetSelector').disabled = true;
+                document.getElementById('exportBtn').disabled = true;
+                document.getElementById('saveBtn').disabled = true;
+                
+                // Reset file label
+                const fileLabel = document.getElementById('fileLabel');
+                const fileLabelText = document.getElementById('fileLabelText');
+                fileLabel.classList.remove('loading', 'success');
+                fileLabelText.textContent = 'Carica file Excel';
+                
+                // Reset content
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>Benvenuto nel sistema F24 IMU</h3>
+                        <p>Carica un file Excel per iniziare la compilazione del modulo F24</p>
+                    </div>
+                `;
+                
+                resetBtnText.textContent = '✓ Completato';
+                setTimeout(() => {
+                    resetBtnText.textContent = 'Reset';
+                    resetBtn.disabled = false;
+                }, 1000);
+                
+                showNotification('Applicazione e dati salvati resettati!', 'success');
+            }, 500);
+        }
+
+        function exportData() {
+            const exportBtn = document.getElementById('exportBtn');
+            const exportBtnText = document.getElementById('exportBtnText');
+            
+            exportBtnText.textContent = 'Esportando...';
+            exportBtn.disabled = true;
+            
+            try {
+                // Get current form data
+                updateCurrentData();
+                
+                // Create new workbook
+                const wb = XLSX.utils.book_new();
+                
+                // Always create exactly 4 sheets as per original structure
+                const sheetNames = workbook ? workbook.SheetNames : ['Persona1', 'Persona2', 'Persona3', 'Persona4'];
+                const currentSheetName = document.getElementById('sheetSelector').value;
+                
+                // If we have less than 4 sheets, pad with default names
+                while (sheetNames.length < 4) {
+                    sheetNames.push(`Persona${sheetNames.length + 1}`);
+                }
+                
+                // Create all 4 sheets
+                for (let sheetIndex = 0; sheetIndex < 4; sheetIndex++) {
+                    const sheetName = sheetNames[sheetIndex];
+                    const wsData = [];
+                    
+                    // Get data for this sheet (saved data takes priority)
+                    const dataToUse = getSheetDataForExport(sheetName);
+                    
+                    // Header row
+                    wsData.push(['Categoria dati', 'Tipo di dati', 'Dati']);
+                    
+                    // CODICE FISCALE section
+                    wsData.push(['CODICE FISCALE', 'Codice Fiscale', dataToUse.codiceFiscale || '']);
+                    
+                    // DATI ANAGRAFICI section
+                    wsData.push(['DATI ANAGRAFICI', 'Nome', dataToUse.datiAnagrafici?.nome || '']);
+                    wsData.push(['DATI ANAGRAFICI', 'Cognome', dataToUse.datiAnagrafici?.cognome || '']);
+                    wsData.push(['DATI ANAGRAFICI', 'Data di Nascita', dataToUse.datiAnagrafici?.dataNascita || '']);
+                    wsData.push(['DATI ANAGRAFICI', 'Sesso', dataToUse.datiAnagrafici?.sesso || '']);
+                    wsData.push(['DATI ANAGRAFICI', 'Comune di nascita', dataToUse.datiAnagrafici?.comuneNascita || '']);
+                    
+                    // DOMICILIO FISCALE section
+                    wsData.push(['DOMICLIO FISCALE', 'Comune', dataToUse.domicilioFiscale?.comune || '']);
+                    wsData.push(['DOMICLIO FISCALE', 'Provincia', dataToUse.domicilioFiscale?.provincia || '']);
+                    wsData.push(['DOMICLIO FISCALE', 'Via e numero civico', dataToUse.domicilioFiscale?.indirizzo || '']);
+                    
+                    // SEZIONE IMU E ALTRI TRIBUTI LOCALI - always include all 4 rows with all 11 fields
+                    for (let rowIndex = 0; rowIndex < 4; rowIndex++) {
+                        const row = dataToUse.imuRows ? dataToUse.imuRows[rowIndex] : {};
+                        const rowLabel = `SEZIONE IMU E ALTRI TRIBUTI LOCALI (riga ${rowIndex + 1})`;
+                        
+                        // Always add all 11 fields for each row, even if empty
+                        wsData.push([rowLabel, 'Codice ente/codice comune', row.codiceEnte || '']);
+                        wsData.push([rowLabel, 'Ravv.', row.ravv || '']);
+                        wsData.push([rowLabel, 'Immob. variati', row.immobVariati || '']);
+                        wsData.push([rowLabel, 'Acconto', row.acconto || '']);
+                        wsData.push([rowLabel, 'Saldo', row.saldo || '']);
+                        wsData.push([rowLabel, 'Numero Immobili', row.numeroImmobili || '']);
+                        wsData.push([rowLabel, 'Codice Tributo', row.codiceTributo || '']);
+                        wsData.push([rowLabel, 'Rateazione/mese rif.', row.rateazione || '']);
+                        wsData.push([rowLabel, 'Anno di riferimento', row.annoRiferimento || '']);
+                        wsData.push([rowLabel, 'Importi a debito versati', row.importiDebito || '']);
+                        wsData.push([rowLabel, 'Importi a credito compensati', row.importiCredito || '']);
+                    }
+                    
+                    // SEZIONE VALORI TOTALI
+                    if (dataToUse.totali?.totaleG) wsData.push(['SEZIONE VALORI TOTALI', 'Totale G', dataToUse.totali.totaleG]);
+                    if (dataToUse.totali?.saldoGH) wsData.push(['SEZIONE VALORI TOTALI', 'Saldo G-H', dataToUse.totali.saldoGH]);
+                    
+                    // Create worksheet
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    
+                    // Set column widths for better readability
+                    ws['!cols'] = [
+                        { wch: 40 }, // Categoria dati
+                        { wch: 30 }, // Tipo di dati  
+                        { wch: 20 }  // Dati
+                    ];
+                    
+                    // Add worksheet to workbook
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                }
+                
+                // Generate filename with current date
+                const now = new Date();
+                const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+                const filename = `F24_IMU_Export_${dateStr}.xlsx`;
+                
+                // Export file
+                XLSX.writeFile(wb, filename);
+                
+                exportBtnText.textContent = '✓ Esportato';
+                setTimeout(() => {
+                    exportBtnText.textContent = 'Esporta Excel';
+                    exportBtn.disabled = false;
+                }, 1500);
+                
+                const savedCount = Object.keys(savedSheetsData).length;
+                const message = savedCount > 0 ? 
+                    `File Excel esportato con ${sheetNames.length} fogli (${savedCount} con modifiche salvate)!` :
+                    `File Excel esportato con ${sheetNames.length} fogli!`;
+                showNotification(message, 'success');
+                
+            } catch (error) {
+                console.error('Errore nell\'esportazione:', error);
+                exportBtnText.textContent = 'Errore';
+                setTimeout(() => {
+                    exportBtnText.textContent = 'Esporta Excel';
+                    exportBtn.disabled = false;
+                }, 1500);
+                showNotification('Errore nell\'esportazione del file', 'error');
+            }
+        }
+
+        function getEmptyData() {
+            return {
+                codiceFiscale: '',
+                datiAnagrafici: {},
+                domicilioFiscale: {},
+                imuRows: [
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' },
+                    { codiceEnte: '', ravv: '', immobVariati: '', acconto: '', saldo: '', numeroImmobili: '', codiceTributo: '', rateazione: '', annoRiferimento: '', importiDebito: '', importiCredito: '' }
+                ],
+                totali: { totaleG: '', saldoGH: '' }
+            };
+        }
+
+        function showNotification(message, type) {
+            // Remove existing notification
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Show notification
+            setTimeout(() => notification.classList.add('show'), 100);
+            
+            // Hide notification
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+                                
