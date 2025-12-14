@@ -541,6 +541,16 @@ Struttura JSON richiesta:
             }
         }
 
+        // Helper to format Date for voice (YYYY-MM-DD -> 24 settembre 1968)
+        function formatDateVoice(isoDate) {
+            if (!isoDate) return "";
+            const months = ["", "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+            const parts = isoDate.split('-');
+            if (parts.length !== 3) return isoDate;
+            // ParseInt removes leading zeros
+            return `${parseInt(parts[2])} ${months[parseInt(parts[1])]} ${parts[0]}`;
+        }
+
         function readFilledFields() {
             const index = getActiveIndex();
             const data = appData[index];
@@ -557,7 +567,12 @@ Struttura JSON richiesta:
 
             let text = `Dati anagrafici per ${clean(data.datiAnagrafici.nome)} ${clean(data.datiAnagrafici.cognome)}. `;
             if (clean(data.codiceFiscale)) text += `Codice fiscale ${data.codiceFiscale}. `;
-            if (clean(data.datiAnagrafici.dataNascita)) text += `Nato il ${data.datiAnagrafici.dataNascita}. `;
+            
+            // Format Date for Voice
+            if (clean(data.datiAnagrafici.dataNascita)) {
+                text += `Nato il ${formatDateVoice(data.datiAnagrafici.dataNascita)}. `;
+            }
+            
             if (clean(data.datiAnagrafici.comuneNascita)) text += `A ${data.datiAnagrafici.comuneNascita}. `;
             if (clean(data.datiAnagrafici.sesso)) text += `Sesso ${data.datiAnagrafici.sesso}. `;
 
