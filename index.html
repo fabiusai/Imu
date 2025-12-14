@@ -248,6 +248,7 @@
         .notification.show { transform: translateY(0); }
         .success { background: #10b981; }
         .error { background: #ef4444; }
+        .info { background: #3b82f6; }
     </style>
 </head>
 <body>
@@ -377,6 +378,9 @@ Struttura JSON richiesta:
 
     <script>
         // --- State Management ---
+        const STORAGE_KEY_DATA = 'f24_data_v2';
+        const STORAGE_KEY_VOICE = 'f24_voice_v1';
+
         let appData = []; 
         const DEFAULT_PERSON = {
             codiceFiscale: '',
@@ -389,6 +393,7 @@ Struttura JSON richiesta:
             }))
         };
 
+        // Initialize empty
         appData = [JSON.parse(JSON.stringify(DEFAULT_PERSON))];
         
         // Voice State
@@ -397,8 +402,10 @@ Struttura JSON richiesta:
 
         // --- Core Functions ---
         function init() { 
+            loadLocalData(); 
+            loadVoiceSettings(); 
+            initVoices(); 
             renderCurrentPerson(); 
-            initVoices();
         }
 
         function getActiveIndex() { return parseInt(document.getElementById('personSelector').value) || 0; }
@@ -413,6 +420,25 @@ Struttura JSON richiesta:
             format: (num) => num.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         };
 
+        // --- AUTO-SAVE LOGIC ---
+        function saveLocalData() {
+            localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(appData));
+        }
+
+        function loadLocalData() {
+            const saved = localStorage.getItem(STORAGE_KEY_DATA);
+            if (saved) {
+                try {
+                    appData = JSON.parse(saved);
+                    updatePersonSelector();
+                    showNotification('Dati recuperati!', 'info');
+                } catch(e) {
+                    console.error("Save corrupted");
+                    localStorage.removeItem(STORAGE_KEY_DATA);
+                }
+            }
+        }
+
         function updateData(path, value, rowIndex = null) {
             const index = getActiveIndex();
             if (rowIndex !== null) {
@@ -424,6 +450,7 @@ Struttura JSON richiesta:
             } else {
                 appData[index][path] = value;
             }
+            saveLocalData(); // Auto-save on change
         }
 
         function calculateTotals() {
@@ -457,7 +484,6 @@ Struttura JSON richiesta:
         function initVoices() {
             const load = () => {
                 voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('it'));
-                // Sort to prefer Google or Premium voices
                 voices.sort((a, b) => {
                     const getScore = (v) => {
                         let score = 0;
@@ -470,12 +496,10 @@ Struttura JSON richiesta:
                     return getScore(b) - getScore(a);
                 });
                 
-                // Set default if not set
                 if (!selectedVoiceURI && voices.length > 0) {
                     selectedVoiceURI = voices[0].voiceURI;
                 }
             };
-
             window.speechSynthesis.onvoiceschanged = load;
             load();
         }
@@ -497,15 +521,21 @@ Struttura JSON richiesta:
 
         function saveVoiceSettings() {
             selectedVoiceURI = document.getElementById('voiceSelection').value;
+            localStorage.setItem(STORAGE_KEY_VOICE, selectedVoiceURI);
             closeVoiceSettings();
             showNotification('Voce salvata!', 'success');
+        }
+
+        function loadVoiceSettings() {
+            const saved = localStorage.getItem(STORAGE_KEY_VOICE);
+            if (saved) selectedVoiceURI = saved;
         }
 
         function testVoice() {
             const uri = document.getElementById('voiceSelection').value;
             const voice = voices.find(v => v.voiceURI === uri);
             if (voice) {
-                const u = new SpeechSynthesisUtterance("Questa è una prova della voce selezionata.");
+                const u = new SpeechSynthesisUtterance("Prova voce: uno, due, tre.");
                 u.voice = voice;
                 window.speechSynthesis.speak(u);
             }
@@ -514,22 +544,44 @@ Struttura JSON richiesta:
         function readFilledFields() {
             const index = getActiveIndex();
             const data = appData[index];
-            let text = `Lettura per ${data.datiAnagrafici.nome} ${data.datiAnagrafici.cognome}. `;
             const clean = (val) => val ? val.toString().trim() : "";
+            
+            // Checks if a row has ANY data
+            const isRowEmpty = (row) => {
+                return !clean(row.codiceEnte) && !clean(row.ravv) && !clean(row.immobVariati) &&
+                       !clean(row.acconto) && !clean(row.saldo) && !clean(row.numeroImmobili) &&
+                       !clean(row.codiceTributo) && !clean(row.rateazione) && !clean(row.annoRiferimento) &&
+                       (clean(row.importiDebito) === '0,00' || !clean(row.importiDebito)) &&
+                       (clean(row.importiCredito) === '0,00' || !clean(row.importiCredito));
+            };
 
-            if (clean(data.codiceFiscale)) text += `Codice: ${data.codiceFiscale}. `;
+            let text = `Contribuente ${data.datiAnagrafici.nome} ${data.datiAnagrafici.cognome}. `;
+            if (clean(data.codiceFiscale)) text += `Codice fiscale ${data.codiceFiscale}. `;
             
             let rowCounter = 0;
             data.imuRows.forEach((row, i) => {
-                const hasDebito = clean(row.importiDebito) !== "" && clean(row.importiDebito) !== "0,00";
-                if (clean(row.codiceEnte) || hasDebito) {
+                if (!isRowEmpty(row)) {
                     rowCounter++;
                     text += `Riga ${rowCounter}. `;
                     if (clean(row.codiceEnte)) text += `Ente ${row.codiceEnte}. `;
+                    if (clean(row.ravv)) text += `Ravvedimento. `;
+                    if (clean(row.immobVariati)) text += `Variati. `;
+                    if (clean(row.acconto)) text += `Acconto. `;
+                    if (clean(row.saldo)) text += `Saldo. `;
+                    if (clean(row.numeroImmobili)) text += `Immobili ${row.numeroImmobili}. `;
                     if (clean(row.codiceTributo)) text += `Tributo ${row.codiceTributo}. `;
-                    if (hasDebito) text += `Importo: ${row.importiDebito} Euro. `;
+                    if (clean(row.rateazione)) text += `Rateazione ${row.rateazione}. `;
+                    if (clean(row.annoRiferimento)) text += `Anno ${row.annoRiferimento}. `;
+                    
+                    if (clean(row.importiDebito) !== '0,00' && clean(row.importiDebito) !== '') 
+                        text += `Debito ${row.importiDebito} Euro. `;
+                    
+                    if (clean(row.importiCredito) !== '0,00' && clean(row.importiCredito) !== '') 
+                        text += `Credito ${row.importiCredito} Euro. `;
                 }
             });
+
+            if (rowCounter === 0) text += "Nessun dato IMU inserito.";
 
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
@@ -541,6 +593,8 @@ Struttura JSON richiesta:
                 document.getElementById('btnStop').style.display = 'flex';
                 utterance.onend = stopReading;
                 window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Sintesi vocale non supportata.");
             }
         }
 
@@ -560,22 +614,19 @@ Struttura JSON richiesta:
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    
                     const newAppData = [];
 
                     workbook.SheetNames.forEach(sheetName => {
                         const ws = workbook.Sheets[sheetName];
-                        // Convert to JSON array of arrays for easy parsing
                         const rows = XLSX.utils.sheet_to_json(ws, {header: 1});
                         
                         let person = JSON.parse(JSON.stringify(DEFAULT_PERSON));
                         let imuRowIndex = 0;
 
-                        // Flexible parser looking for keys in Column A (index 0)
                         rows.forEach((row, rIdx) => {
                             if (!row || row.length < 2) return;
                             const key = (row[0] || '').toString().trim();
-                            const val = row[1]; // Value is usually in B or C depending on format
+                            const val = row[1];
 
                             if (key === 'Codice Fiscale') person.codiceFiscale = val || '';
                             else if (key === 'Cognome') person.datiAnagrafici.cognome = val || '';
@@ -583,20 +634,12 @@ Struttura JSON richiesta:
                             else if (key === 'Data Nascita') person.datiAnagrafici.dataNascita = val || '';
                             else if (key === 'Sesso') person.datiAnagrafici.sesso = val || '';
                             else if (key === 'Comune Nascita') person.datiAnagrafici.comuneNascita = val || '';
-                            
-                            else if (key === 'Comune' && rows[rIdx-1] && rows[rIdx-1][0] === 'DOMICILIO') {
-                                // Context check: Ensure it's Domicilio section
-                                person.domicilioFiscale.comune = val || '';
-                            }
+                            else if (key === 'Comune' && rows[rIdx-1] && rows[rIdx-1][0] === 'DOMICILIO') person.domicilioFiscale.comune = val || '';
                             else if (key === 'Provincia') person.domicilioFiscale.provincia = val || '';
                             else if (key === 'Indirizzo') person.domicilioFiscale.indirizzo = val || '';
                             
                             // IMU Rows detection
-                            // The export format has rows like [CodEnte, Ravv, Var, ...] in a specific order
-                            // We look for data rows that come after "IMU SECTION" or have many columns
                             if (row.length > 5 && imuRowIndex < 4) {
-                                // Heuristic: Check if row looks like IMU data (not a header)
-                                // In export: headers are at 'CodEnte', 'Ravv'...
                                 if (row[0] !== 'CodEnte' && row[0] !== 'CAMPO' && row[0] !== 'IMU SECTION' && row[0] !== '') {
                                     person.imuRows[imuRowIndex] = {
                                         codiceEnte: row[0] || '',
@@ -620,6 +663,7 @@ Struttura JSON richiesta:
 
                     if (newAppData.length > 0) {
                         appData = newAppData;
+                        saveLocalData();
                         updatePersonSelector();
                         renderCurrentPerson();
                         showNotification('File Excel importato!', 'success');
@@ -630,7 +674,6 @@ Struttura JSON richiesta:
                     console.error(err);
                     showNotification('Errore lettura file', 'error');
                 }
-                // Reset input
                 input.value = '';
             };
             reader.readAsArrayBuffer(file);
@@ -796,6 +839,7 @@ Struttura JSON richiesta:
                     return newP;
                 });
 
+                saveLocalData();
                 updatePersonSelector();
                 renderCurrentPerson();
                 closeImportModal();
@@ -853,7 +897,8 @@ Struttura JSON richiesta:
         }
 
         function resetApp() {
-            if(confirm("Cancellare tutto?")) {
+            if(confirm("Cancellare tutto e svuotare la memoria?")) {
+                localStorage.removeItem(STORAGE_KEY_DATA);
                 appData = [JSON.parse(JSON.stringify(DEFAULT_PERSON))];
                 document.getElementById('personSelector').innerHTML = '<option value="0">Contribuente 1</option>';
                 renderCurrentPerson();
