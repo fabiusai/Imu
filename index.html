@@ -17,12 +17,12 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-gradient);
             min-height: 100vh;
             padding: 15px;
             color: var(--text);
-            font-size: 14px; /* Base font size slightly smaller for compactness */
+            font-size: 14px;
         }
 
         .container {
@@ -72,10 +72,16 @@
             transition: opacity 0.2s;
         }
         .btn:hover { opacity: 0.9; }
-        .btn-prompt { background: #f59e0b; }
-        .btn-ai { background: #8b5cf6; }
-        .btn-export { background: #10b981; }
-        .btn-reset { background: #ef4444; }
+        .btn-prompt { background: #f59e0b; } /* Orange */
+        .btn-ai { background: #8b5cf6; } /* Purple */
+        .btn-export { background: #10b981; } /* Green */
+        .btn-import { background: #059669; } /* Dark Green */
+        .btn-reset { background: #ef4444; } /* Red */
+        
+        /* Speech Buttons */
+        .btn-speak { background: #0284c7; } /* Light Blue */
+        .btn-stop { background: #334155; display: none; } /* Dark Grey */
+        .btn-settings { background: #64748b; padding: 8px; } /* Gear Icon */
 
         /* --- Content Layout --- */
         .content { padding: 20px; }
@@ -100,11 +106,11 @@
 
         .section-body { padding: 15px; }
 
-        /* --- Compact Form Grid --- */
+        /* --- Form Grid --- */
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Compact columns */
-            gap: 12px 15px; /* Tighter gap */
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px 15px;
         }
 
         .form-group { position: relative; }
@@ -123,10 +129,9 @@
             align-items: center;
         }
 
-        /* Inputs styled for copy button */
         .form-input {
             width: 100%;
-            padding: 8px 35px 8px 10px; /* Right padding for button */
+            padding: 8px 35px 8px 10px;
             border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 0.95rem;
@@ -135,7 +140,6 @@
         }
         .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1); }
 
-        /* Copy Button */
         .copy-btn {
             position: absolute;
             right: 4px;
@@ -171,7 +175,6 @@
         
         td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
         
-        /* Table Inputs */
         td input { 
             width: 100%; 
             padding: 6px; 
@@ -223,12 +226,17 @@
         }
         .modal-header { display: flex; justify-content: space-between; align-items: center; }
         .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #9ca3af; }
+        
         textarea {
             width: 100%; height: 200px; padding: 10px;
             border: 1px solid var(--border); border-radius: 4px;
             font-family: monospace; font-size: 0.85rem; background: #f8fafc;
         }
         .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        
+        /* Voice Select inside Modal */
+        .voice-select-container { margin-top: 10px; }
+        .voice-select-container select { width: 100%; padding: 10px; font-size: 1rem; }
 
         /* Notification Toast */
         .notification {
@@ -248,21 +256,31 @@
         <div class="header">
             <div>
                 <h1>Compilazione F24 IMU</h1>
-                <span style="font-size: 0.8rem; opacity: 0.8; font-weight: normal;">AI Enhanced & Compact</span>
+                <span style="font-size: 0.8rem; opacity: 0.8; font-weight: normal;">AI Enhanced</span>
             </div>
         </div>
 
         <div class="controls">
+            <input type="file" id="excelInput" accept=".xlsx, .xls" style="display: none" onchange="handleExcelFile(this)">
+
             <div class="sheet-selector">
                 <select id="personSelector" onchange="renderCurrentPerson()">
                     <option value="0">Contribuente 1</option>
                 </select>
             </div>
             
-            <button class="btn btn-prompt" onclick="openPromptModal()">📋 Ottieni Prompt</button>
-            <button class="btn btn-ai" onclick="openImportModal()">✨ Importa JSON</button>
-            <button class="btn btn-export" onclick="exportToExcel()">📊 Esporta Excel</button>
-            <button class="btn btn-reset" onclick="resetApp()">🔄 Reset</button>
+            <button class="btn btn-prompt" onclick="openPromptModal()">📋 Prompt</button>
+            <button class="btn btn-ai" onclick="openImportModal()">✨ JSON</button>
+            <button class="btn btn-import" onclick="document.getElementById('excelInput').click()">📂 Importa Excel</button>
+            <button class="btn btn-export" onclick="exportToExcel()">📊 Esporta</button>
+            
+            <div style="width: 1px; background: #ccc; height: 24px; margin: 0 5px;"></div>
+            
+            <button class="btn btn-speak" id="btnSpeak" onclick="readFilledFields()">🔊 Leggi</button>
+            <button class="btn btn-stop" id="btnStop" onclick="stopReading()">⬛ Stop</button>
+            <button class="btn btn-settings" onclick="openVoiceSettings()" title="Impostazioni Voce">⚙️</button>
+            
+            <button class="btn btn-reset" onclick="resetApp()">🔄</button>
         </div>
 
         <div class="content" id="formContent">
@@ -340,6 +358,23 @@ Struttura JSON richiesta:
         </div>
     </div>
 
+    <div class="modal" id="voiceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Impostazioni Voce</h3>
+                <button class="close-modal" onclick="closeVoiceSettings()">×</button>
+            </div>
+            <div class="voice-select-container">
+                <label class="form-label">Scegli la voce di sistema:</label>
+                <select id="voiceSelection"></select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-speak" onclick="testVoice()">Test Voce</button>
+                <button class="btn btn-export" onclick="saveVoiceSettings()">Salva</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- State Management ---
         let appData = []; 
@@ -355,9 +390,16 @@ Struttura JSON richiesta:
         };
 
         appData = [JSON.parse(JSON.stringify(DEFAULT_PERSON))];
+        
+        // Voice State
+        let voices = [];
+        let selectedVoiceURI = null;
 
         // --- Core Functions ---
-        function init() { renderCurrentPerson(); }
+        function init() { 
+            renderCurrentPerson(); 
+            initVoices();
+        }
 
         function getActiveIndex() { return parseInt(document.getElementById('personSelector').value) || 0; }
 
@@ -396,17 +438,12 @@ Struttura JSON richiesta:
             document.getElementById('displaySaldo').textContent = Money.format(totDebito - totCredito);
         }
 
-        // --- Copy to Clipboard Functionality ---
         function copyToClipboard(value, btn) {
             navigator.clipboard.writeText(value).then(() => {
-                // Visual feedback
                 const originalHtml = btn.innerHTML;
                 btn.innerHTML = '✓';
                 btn.classList.add('copied');
-                
-                // Show toast
                 showNotification('Copiato!', 'success');
-
                 setTimeout(() => {
                     btn.innerHTML = originalHtml;
                     btn.classList.remove('copied');
@@ -416,13 +453,206 @@ Struttura JSON richiesta:
             });
         }
 
-        // --- Rendering Logic with Copy Buttons ---
+        // --- SPEECH & VOICE MANAGEMENT ---
+        function initVoices() {
+            const load = () => {
+                voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('it'));
+                // Sort to prefer Google or Premium voices
+                voices.sort((a, b) => {
+                    const getScore = (v) => {
+                        let score = 0;
+                        if (v.name.includes('Google')) score += 10;
+                        if (v.name.includes('Siri')) score += 5;
+                        if (v.name.includes('Premium')) score += 3;
+                        if (v.name.includes('Enhanced')) score += 2;
+                        return score;
+                    };
+                    return getScore(b) - getScore(a);
+                });
+                
+                // Set default if not set
+                if (!selectedVoiceURI && voices.length > 0) {
+                    selectedVoiceURI = voices[0].voiceURI;
+                }
+            };
+
+            window.speechSynthesis.onvoiceschanged = load;
+            load();
+        }
+
+        function openVoiceSettings() {
+            const select = document.getElementById('voiceSelection');
+            select.innerHTML = '';
+            voices.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.voiceURI;
+                opt.text = `${v.name} (${v.lang})`;
+                if (v.voiceURI === selectedVoiceURI) opt.selected = true;
+                select.appendChild(opt);
+            });
+            document.getElementById('voiceModal').classList.add('active');
+        }
+
+        function closeVoiceSettings() { document.getElementById('voiceModal').classList.remove('active'); }
+
+        function saveVoiceSettings() {
+            selectedVoiceURI = document.getElementById('voiceSelection').value;
+            closeVoiceSettings();
+            showNotification('Voce salvata!', 'success');
+        }
+
+        function testVoice() {
+            const uri = document.getElementById('voiceSelection').value;
+            const voice = voices.find(v => v.voiceURI === uri);
+            if (voice) {
+                const u = new SpeechSynthesisUtterance("Questa è una prova della voce selezionata.");
+                u.voice = voice;
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        function readFilledFields() {
+            const index = getActiveIndex();
+            const data = appData[index];
+            let text = `Lettura per ${data.datiAnagrafici.nome} ${data.datiAnagrafici.cognome}. `;
+            const clean = (val) => val ? val.toString().trim() : "";
+
+            if (clean(data.codiceFiscale)) text += `Codice: ${data.codiceFiscale}. `;
+            
+            let rowCounter = 0;
+            data.imuRows.forEach((row, i) => {
+                const hasDebito = clean(row.importiDebito) !== "" && clean(row.importiDebito) !== "0,00";
+                if (clean(row.codiceEnte) || hasDebito) {
+                    rowCounter++;
+                    text += `Riga ${rowCounter}. `;
+                    if (clean(row.codiceEnte)) text += `Ente ${row.codiceEnte}. `;
+                    if (clean(row.codiceTributo)) text += `Tributo ${row.codiceTributo}. `;
+                    if (hasDebito) text += `Importo: ${row.importiDebito} Euro. `;
+                }
+            });
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
+                if (voice) utterance.voice = voice;
+                
+                document.getElementById('btnSpeak').style.display = 'none';
+                document.getElementById('btnStop').style.display = 'flex';
+                utterance.onend = stopReading;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function stopReading() {
+            window.speechSynthesis.cancel();
+            document.getElementById('btnSpeak').style.display = 'flex';
+            document.getElementById('btnStop').style.display = 'none';
+        }
+
+        // --- EXCEL IMPORT LOGIC ---
+        function handleExcelFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    const newAppData = [];
+
+                    workbook.SheetNames.forEach(sheetName => {
+                        const ws = workbook.Sheets[sheetName];
+                        // Convert to JSON array of arrays for easy parsing
+                        const rows = XLSX.utils.sheet_to_json(ws, {header: 1});
+                        
+                        let person = JSON.parse(JSON.stringify(DEFAULT_PERSON));
+                        let imuRowIndex = 0;
+
+                        // Flexible parser looking for keys in Column A (index 0)
+                        rows.forEach((row, rIdx) => {
+                            if (!row || row.length < 2) return;
+                            const key = (row[0] || '').toString().trim();
+                            const val = row[1]; // Value is usually in B or C depending on format
+
+                            if (key === 'Codice Fiscale') person.codiceFiscale = val || '';
+                            else if (key === 'Cognome') person.datiAnagrafici.cognome = val || '';
+                            else if (key === 'Nome') person.datiAnagrafici.nome = val || '';
+                            else if (key === 'Data Nascita') person.datiAnagrafici.dataNascita = val || '';
+                            else if (key === 'Sesso') person.datiAnagrafici.sesso = val || '';
+                            else if (key === 'Comune Nascita') person.datiAnagrafici.comuneNascita = val || '';
+                            
+                            else if (key === 'Comune' && rows[rIdx-1] && rows[rIdx-1][0] === 'DOMICILIO') {
+                                // Context check: Ensure it's Domicilio section
+                                person.domicilioFiscale.comune = val || '';
+                            }
+                            else if (key === 'Provincia') person.domicilioFiscale.provincia = val || '';
+                            else if (key === 'Indirizzo') person.domicilioFiscale.indirizzo = val || '';
+                            
+                            // IMU Rows detection
+                            // The export format has rows like [CodEnte, Ravv, Var, ...] in a specific order
+                            // We look for data rows that come after "IMU SECTION" or have many columns
+                            if (row.length > 5 && imuRowIndex < 4) {
+                                // Heuristic: Check if row looks like IMU data (not a header)
+                                // In export: headers are at 'CodEnte', 'Ravv'...
+                                if (row[0] !== 'CodEnte' && row[0] !== 'CAMPO' && row[0] !== 'IMU SECTION' && row[0] !== '') {
+                                    person.imuRows[imuRowIndex] = {
+                                        codiceEnte: row[0] || '',
+                                        ravv: row[1] || '',
+                                        immobVariati: row[2] || '',
+                                        acconto: row[3] || '',
+                                        saldo: row[4] || '',
+                                        numeroImmobili: row[5] || '',
+                                        codiceTributo: row[6] || '',
+                                        rateazione: row[7] || '',
+                                        annoRiferimento: row[8] || '',
+                                        importiDebito: row[9] || '0,00',
+                                        importiCredito: row[10] || '0,00'
+                                    };
+                                    imuRowIndex++;
+                                }
+                            }
+                        });
+                        newAppData.push(person);
+                    });
+
+                    if (newAppData.length > 0) {
+                        appData = newAppData;
+                        updatePersonSelector();
+                        renderCurrentPerson();
+                        showNotification('File Excel importato!', 'success');
+                    } else {
+                        showNotification('Nessun dato trovato.', 'error');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showNotification('Errore lettura file', 'error');
+                }
+                // Reset input
+                input.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- UI UPDATES ---
+        function updatePersonSelector() {
+            const sel = document.getElementById('personSelector');
+            sel.innerHTML = '';
+            appData.forEach((p, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.text = `${p.datiAnagrafici.nome || 'Utente'} ${p.datiAnagrafici.cognome || (idx+1)}`;
+                sel.appendChild(opt);
+            });
+        }
+
         function renderCurrentPerson() {
             const index = getActiveIndex();
             const data = appData[index];
             const container = document.getElementById('formContent');
 
-            // Helper to create compact input with copy button
             const createInput = (label, value, path, type = 'text', width = '100%') => `
                 <div class="form-group" style="grid-column: span ${width === '100%' ? '2' : '1'}">
                     <label class="form-label">${label}</label>
@@ -434,7 +664,6 @@ Struttura JSON richiesta:
                 </div>
             `;
             
-            // Special helper for select
             const createSelect = (label, value, path, options) => `
                 <div class="form-group">
                     <label class="form-label">${label}</label>
@@ -524,7 +753,7 @@ Struttura JSON richiesta:
             calculateTotals();
         }
 
-        // --- Helper: Format Money Input on Blur ---
+        // --- Format Money ---
         function formatMoney(input, field, rowIndex) {
             let val = Money.parse(input.value);
             let formatted = Money.format(val);
@@ -548,13 +777,13 @@ Struttura JSON richiesta:
             });
         }
 
-        // --- Import Logic ---
+        // --- Import Logic (JSON) ---
         function processJSON() {
             try {
                 const raw = document.getElementById('jsonInput').value;
                 const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(clean);
-                if (!Array.isArray(parsed)) throw new Error("JSON non valido (deve essere Array)");
+                if (!Array.isArray(parsed)) throw new Error("JSON non valido");
 
                 appData = parsed.map(p => {
                     let newP = JSON.parse(JSON.stringify(DEFAULT_PERSON));
@@ -567,15 +796,7 @@ Struttura JSON richiesta:
                     return newP;
                 });
 
-                const sel = document.getElementById('personSelector');
-                sel.innerHTML = '';
-                appData.forEach((p, idx) => {
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    opt.text = `${p.datiAnagrafici.nome || 'Utente'} ${p.datiAnagrafici.cognome || (idx+1)}`;
-                    sel.appendChild(opt);
-                });
-
+                updatePersonSelector();
                 renderCurrentPerson();
                 closeImportModal();
                 showNotification('Dati importati!', 'success');
